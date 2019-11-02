@@ -100,7 +100,7 @@ class ImageCropper:
         else:
             return self.original_img[top:bottom, left:right]
 
-    @auto_axes()
+    @auto_plot()
     def show(self, ax=None):
         box = self.get_cropping_box()
         ax.imshow(self.original_img)

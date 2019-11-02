@@ -38,7 +38,7 @@ def get_image_palette(img: PILImage, colors: int = 256) -> Tuple[np.ndarray, PIL
     return pal, pal_img
 
 
-@auto_axes(nrows=1, ncols=2)
+@auto_plot(nrows=1, ncols=2)
 def show_image_palette(img, colors: int = 256, ax=None) -> None:
     pal, pal_img = get_image_palette(img, colors)
     # enlarge it to a reasonable size
