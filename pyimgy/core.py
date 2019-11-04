@@ -195,17 +195,11 @@ def convert_image(*args, **kwargs):
 
 
 def convert_to_standard_pil(img):
-    if isinstance(img, PILImage):
-        return img
-    else:
-        return DEFAULT_CONVERTER.convert_image(img, to_type=PILImage, shape='WHC', norm='int_255')
+    return img if isinstance(img, PILImage) else convert_image(img, to_type=PILImage, shape='WHC', norm='int_255')
 
 
 def convert_for_plot(img):
-    if isinstance(img, PILImage):
-        return img
-    else:
-        return DEFAULT_CONVERTER.convert_image(img, to_type=np.ndarray, shape='WH3')
+    return img if isinstance(img, PILImage) else convert_image(img, to_type=np.ndarray, shape='WH3')
 
 
 def converting(to: type, shape=None, norm=None, argument: Union[int, str] = 0, return_pos: int = 0, preserve_type: bool = False):
