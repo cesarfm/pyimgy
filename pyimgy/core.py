@@ -1,3 +1,4 @@
+import types
 from functools import wraps
 from typing import Union
 
@@ -7,34 +8,66 @@ from PIL.Image import Image as PILImage
 
 # CONVERSION UTILS
 
-_valid_channels = (1, 3)
+VALID_CHANNELS = (1, 3)
 
 
-def format_shape_numpy(arr: np.ndarray, out_ch: int = 3, trailing_ch: bool = False, include_bn: bool = False) -> np.ndarray:
+class BaseArray:
+    raw_type = np.ndarray
+    delegated_methods = {
+        'broadcast_to': np.broadcast_to,
+        'unsqueeze': np.expand_dims
+    }
+    delegated_properties = {}
+
+    def __init__(self, value):
+        self.value = value
+
+    @classmethod
+    def wrap(cls, value):
+        return cls(value) if isinstance(value, cls.raw_type) else value
+
+    def __getattr__(self, item):
+        attr = self.delegated_properties.get(item)
+        if attr is not None:
+            return self.wrap(attr(self))
+        attr = self.delegated_methods.get(item) or self.value.__getattribute__(item)
+        if isinstance(attr, (types.FunctionType, types.BuiltinFunctionType, types.MethodType, types.BuiltinMethodType)):
+            # callable -- needs a wrapper
+            def _wrapper(*args, **kwargs):
+                return self.wrap(attr(*args, **kwargs))
+
+            return _wrapper
+        return self.wrap(attr)
+
+
+def format_shape_universal(arr, out_ch: int = 3, trailing_ch: bool = False, include_bn: bool = False):
     old_shape = arr.shape
-    assert out_ch in _valid_channels, f'Invalid target channel: {out_ch}'
+    assert out_ch in VALID_CHANNELS, f'Invalid target channel: {out_ch}'
     assert arr.ndim in (2, 3) or arr.ndim == 4 and old_shape[0] == 1, f'Invalid shape: {old_shape}'
-
-    hw = old_shape[-2:]
-    new_shape = (hw + (out_ch,)) if trailing_ch else ((out_ch,) + hw)
-    if include_bn:
-        new_shape = (1,) + new_shape
 
     if arr.ndim == 4:
         arr = arr.squeeze(0)
 
     # at this point, ndim can be only 2 or 3
+    hw = old_shape[-2:]
     if arr.ndim == 3:
-        d1_like_ch = arr.shape[0] in _valid_channels
-        d3_like_ch = arr.shape[2] in _valid_channels
+        d1_like_ch = arr.shape[0] in VALID_CHANNELS
+        d3_like_ch = arr.shape[2] in VALID_CHANNELS
         assert d1_like_ch ^ d3_like_ch, f'Ambiguous shape: {old_shape}'
 
         if d1_like_ch and trailing_ch:
             arr = arr.transpose((1, 2, 0))
         if d3_like_ch and not trailing_ch:
             arr = arr.transpose((2, 0, 1))
+        if d3_like_ch:
+            hw = old_shape[-3:-1]
 
-    return np.broadcast_to(arr, new_shape)
+    new_shape = (hw + (out_ch,)) if trailing_ch else ((out_ch,) + hw)
+    if arr.shape != new_shape:
+        arr = arr.broadcast_to(new_shape).copy()
+    if include_bn:
+        arr = arr.unsqueeze(0)
+    return arr
 
 
 def normalize_numpy_to_ints(arr: np.ndarray) -> np.ndarray:
@@ -94,13 +127,13 @@ class ImageConverter:
         return self._convert_format(img, to_type=to_type or original_type)
 
 
-_DEFAULT_CONVERTER = ImageConverter(
+DEFAULT_CONVERTER = ImageConverter(
     formats_map={
         (np.ndarray, PILImage): PIL.Image.fromarray,
         (PILImage, np.ndarray): np.array
     },
     shapers_map={
-        np.ndarray: format_shape_numpy
+        np.ndarray: format_shape_universal
     },
     norm_map={
         (np.ndarray, 'int_255'): normalize_numpy_to_ints,
@@ -111,7 +144,7 @@ _DEFAULT_CONVERTER = ImageConverter(
 
 
 def convert_image(*args, **kwargs):
-    return _DEFAULT_CONVERTER.convert_image(*args, **kwargs)
+    return DEFAULT_CONVERTER.convert_image(*args, **kwargs)
 
 
 def replace_at_index(tup: tuple, idx: int, value) -> tuple:
