@@ -11,5 +11,5 @@ torch.Tensor.repeat = torch.Tensor.repeat_interleave
 
 DEFAULT_CONVERTER.type_converter_map.update({
     (np.ndarray, torch.Tensor): torch.from_numpy,
-    (torch.Tensor, np.ndarray): torch.Tensor.numpy,
+    (torch.Tensor, np.ndarray): lambda t: t.cpu().numpy(),
 })

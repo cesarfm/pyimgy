@@ -46,9 +46,11 @@ class ImageConverter:
         'WH3': (3, 3, True),
         'WH1': (3, 1, True),
         'WHC': (3, None, True),
+        'CWH': (3, None, False),
         '13WH': (4, 3, False),
         '1WH3': (4, 3, True),
-        '11WH': (4, 1, False)
+        '11WH': (4, 1, False),
+        '1CWH': (4, None, False)
     }
     SHAPE_PARAMS_INVERSE_MAP = {v: k for k, v in SHAPE_PARAMS_MAP.items()}
 
