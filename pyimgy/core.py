@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Union
+from typing import Union, Tuple
 
 import PIL.Image
 import numpy as np
@@ -37,16 +37,20 @@ def get_sub_map(mapping, key, key_idx):
 # CONVERSION UTILS
 
 class ImageConverter:
+    VALID_DIMENSIONS = (2, 3, 4)
     VALID_CHANNELS = (1, 3, 4)
     SHAPE_PARAMS_MAP = {
-        '3WH': (3, False, False),
-        '1WH': (1, False, False),
-        'WH3': (3, True, False),
-        'WH1': (1, True, False),
-        '13WH': (3, False, True),
-        '1WH3': (3, True, True),
-        'WHC': (None, True, False)
+        'WH': (2, 1, False),
+        '3WH': (3, 3, False),
+        '1WH': (3, 1, False),
+        'WH3': (3, 3, True),
+        'WH1': (3, 1, True),
+        'WHC': (3, None, True),
+        '13WH': (4, 3, False),
+        '1WH3': (4, 3, True),
+        '11WH': (4, 1, False)
     }
+    SHAPE_PARAMS_INVERSE_MAP = {v: k for k, v in SHAPE_PARAMS_MAP.items()}
 
     def __init__(self, type_converter_map, norm_map, fallback_type_map):
         self.type_converter_map = type_converter_map  # (from_type, to_type) -> type conversion func
@@ -101,41 +105,55 @@ class ImageConverter:
             from_ = to_type
         return img
 
-    def _format_array_shape(self, arr, out_ch: int = None, trailing_ch: bool = False, include_bn: bool = False):
-        old_shape = arr.shape
-        assert out_ch is None or out_ch in self.VALID_CHANNELS, f'Invalid target channel: {out_ch}'
-        assert arr.ndim in (2, 3) or arr.ndim == 4 and old_shape[0] == 1, f'Invalid shape: {old_shape}'
+    def _get_array_shape(self, arr) -> Tuple[str, int, bool]:
+        assert arr.ndim in (2, 3) or arr.ndim == 4 and arr.shape[0] == 1, f'Invalid shape: {arr.shape}'
+        if arr.ndim == 2:
+            num_ch = 1
+            trailing_ch = False
+        else:
+            leading_ch = arr.shape[-3] in self.VALID_CHANNELS
+            trailing_ch = arr.shape[-1] in self.VALID_CHANNELS
+            assert leading_ch ^ trailing_ch, f'Not possible to infer channel from shape: {arr.shape}'
+            num_ch = arr.shape[-1 if trailing_ch else -3]
+        shape_args = (arr.ndim, num_ch if num_ch in (1, 3) else None, trailing_ch)
+        return self.SHAPE_PARAMS_INVERSE_MAP.get(shape_args), num_ch, trailing_ch
 
-        ch_dim = None  # the dimension of the channel
+    def get_array_shape(self, arr) -> str:
+        return self._get_array_shape(arr)[0]
+
+    def _format_array_shape(self, arr, out_ndim: int = 3, out_num_ch: int = None, out_trailing_ch: bool = False):
+        assert out_ndim in self.VALID_DIMENSIONS, f'Invalid target dimensions: {out_ndim}'
+        assert out_num_ch is None or out_num_ch in self.VALID_CHANNELS, f'Invalid target channel: {out_num_ch}'
+
+        old_shape = arr.shape
+        _, num_ch, trailing_ch = self._get_array_shape(arr)
+
         if arr.ndim == 4:
             arr = arr.squeeze(0)
         elif arr.ndim == 2:
             arr = arr[None]  # unsqueeze(0)
-            ch_dim = 0  # pretty clear that the channel is here
 
         # at this point, ndim can be only 3
-        # infer channel dimension if not known yet
-        if ch_dim is None:
-            d1_like_ch = arr.shape[0] in self.VALID_CHANNELS
-            d3_like_ch = arr.shape[2] in self.VALID_CHANNELS
-            assert d1_like_ch ^ d3_like_ch, f'Not possible to infer channel from shape: {old_shape}'
-            ch_dim = 2 if d3_like_ch else 0
+        ch_dim = 2 if trailing_ch else 0
+
+        if out_ndim == 2:
+            assert num_ch == 1, f'Not possible to make 2-D with {num_ch} channels, for shape {old_shape}'
+            return arr.squeeze(ch_dim)
 
         # now make sure that the channels are correct
-        if out_ch is not None:
-            in_ch = arr.shape[ch_dim]
-            if in_ch == 1 and out_ch > 1:
-                arr = arr.repeat(out_ch, ch_dim)
+        if out_num_ch is not None:
+            if num_ch == 1 and out_num_ch > 1:
+                arr = arr.repeat(out_num_ch, ch_dim)
             else:
-                assert in_ch == out_ch, f'Not possible to change channels from {in_ch} to {out_ch} for shape {old_shape}'
+                assert num_ch == out_num_ch, f'Not possible to change channels from {num_ch} to {out_num_ch} for shape {old_shape}'
 
         # transpose if needed
-        if ch_dim == 0 and trailing_ch:
+        if ch_dim == 0 and out_trailing_ch:
             arr = arr.transpose((1, 2, 0))
-        if ch_dim == 2 and not trailing_ch:
+        if ch_dim == 2 and not out_trailing_ch:
             arr = arr.transpose((2, 0, 1))
 
-        return arr[None] if include_bn else arr
+        return arr[None] if out_ndim == 4 else arr
 
     def _convert_shape(self, img, shape: str) -> np.ndarray:
         shaper_args = self.SHAPE_PARAMS_MAP.get(shape)
@@ -202,7 +220,8 @@ def convert_for_plot(img):
     return img if isinstance(img, PILImage) else convert_image(img, to_type=np.ndarray, shape='WH3')
 
 
-def converting(to: type, shape=None, norm=None, argument: Union[int, str] = 0, return_pos: int = 0, preserve_type: bool = False):
+def converting(to: type = None, shape: str = None, norm: str = None, argument: Union[int, str] = 0, return_pos: int = 0, preserve_type: bool = False,
+               preserve_shape: bool = False):
     """
     A neat decorator to simplify common conversions in functions.
 
@@ -213,6 +232,7 @@ def converting(to: type, shape=None, norm=None, argument: Union[int, str] = 0, r
                      named kwargs.
     :param return_pos: If preserve_type=True, the position of the corresponding output that has to be converted back.
     :param preserve_type: if True, the type of the output is preserved, i.e. it is converted back to the original type of the input, if needed.
+    :param preserve_shape: if True, the shape of the output is preserved from the input; if it's a recognized shape.
     :return:
     """
 
@@ -220,7 +240,8 @@ def converting(to: type, shape=None, norm=None, argument: Union[int, str] = 0, r
         @wraps(func)
         def decorated(*args, **kwargs):
             input = args[argument] if isinstance(argument, int) else kwargs[argument]
-            original_type = type(input)
+            output_type = type(input) if preserve_type else None
+            output_shape = DEFAULT_CONVERTER.get_array_shape(input) if preserve_shape else None
             input_converted = DEFAULT_CONVERTER.convert_image(input, to_type=to, shape=shape, norm=norm)
 
             if isinstance(argument, int):
@@ -231,12 +252,12 @@ def converting(to: type, shape=None, norm=None, argument: Union[int, str] = 0, r
 
             outputs = func(*args, **kwargs)
 
-            if not preserve_type:
+            if not (preserve_type or preserve_shape):
                 return outputs
             elif isinstance(outputs, tuple):
-                return replace_at_index(outputs, return_pos, convert_image(outputs[return_pos], to_type=original_type))
+                return replace_at_index(outputs, return_pos, convert_image(outputs[return_pos], to_type=output_type, shape=output_shape))
             else:
-                return convert_image(outputs, to_type=original_type)
+                return convert_image(outputs, to_type=output_type, shape=output_shape)
 
         return decorated
 
@@ -288,11 +309,3 @@ def show_images(imgs, titles=None, r=1, fig=None):
         ax.axis('off')
         if titles is not None:
             ax.set_title(str(titles[i]))
-
-
-# OTHERS
-
-# this method will keep the type of the input, only making conversions when needed
-@converting(to=PILImage, preserve_type=True)
-def resize_image(img: PILImage, width: int, height: int, resample: int = 0):
-    return img.resize((width, height), resample)

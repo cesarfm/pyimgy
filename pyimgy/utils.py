@@ -4,7 +4,7 @@ import PIL.Image
 
 from pyimgy.core import *
 
-__all__ = ['is_valid_image_shape', 'assert_valid_image_shape', 'get_image_palette', 'show_image_palette']
+__all__ = ['is_valid_image_shape', 'assert_valid_image_shape', 'get_image_palette', 'show_image_palette', 'resize_as_pil']
 
 
 # IMAGE FORMAT UTILS
@@ -52,3 +52,11 @@ def show_image_palette(img, colors: int = 256, ax=None) -> None:
     ax[0].set_title(f'Image {pal_img.size}')
     ax[1].imshow(pal)
     ax[1].set_title(f'Palette, {colors} colors')
+
+
+# RESIZING
+
+# this method will keep the type of the input, only making conversions when needed
+@converting(to=PILImage, preserve_type=True)
+def resize_as_pil(img: PILImage, width: int, height: int, resample: int = 0):
+    return img.resize((width, height), resample)
