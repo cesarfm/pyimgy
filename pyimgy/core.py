@@ -36,6 +36,15 @@ def get_sub_map(mapping, key, key_idx):
 
 # CONVERSION UTILS
 
+
+class _DummyPatchContext:
+    def __enter__(self):
+        pass
+
+    def __exit__(self, exc_type, exc_val, exc_tb):
+        pass
+
+
 class ImageConverter:
     VALID_DIMENSIONS = (2, 3, 4)
     VALID_CHANNELS = (1, 3, 4)
@@ -54,10 +63,11 @@ class ImageConverter:
     }
     SHAPE_PARAMS_INVERSE_MAP = {v: k for k, v in SHAPE_PARAMS_MAP.items()}
 
-    def __init__(self, type_converter_map, norm_map, fallback_type_map):
+    def __init__(self, type_converter_map, norm_map, fallback_type_map, context_class=_DummyPatchContext):
         self.type_converter_map = type_converter_map  # (from_type, to_type) -> type conversion func
         self.norm_map = norm_map  # (norm) -> (type) -> normalizer func
         self.fallback_type_map = fallback_type_map
+        self.context_class = context_class
 
         self._converter_cache = {}
 
@@ -177,12 +187,13 @@ class ImageConverter:
         return norm_func(img)
 
     def convert_image(self, img, to_type=None, shape=None, norm=None):
-        original_type = type(img)
-        if shape:
-            img = self._convert_shape(img, shape)
-        if norm:
-            img = self._convert_norm(img, norm)
-        return self._convert_type(img, to_type=to_type or original_type, chained=True)
+        with self.context_class():
+            original_type = type(img)
+            if shape:
+                img = self._convert_shape(img, shape)
+            if norm:
+                img = self._convert_norm(img, norm)
+            return self._convert_type(img, to_type=to_type or original_type, chained=True)
 
 
 def normalize_numpy_to_ints(arr: np.ndarray) -> np.ndarray:
@@ -210,6 +221,7 @@ DEFAULT_CONVERTER = ImageConverter(
 )
 
 
+@wraps(ImageConverter.convert_image)
 def convert_image(*args, **kwargs):
     return DEFAULT_CONVERTER.convert_image(*args, **kwargs)
 
