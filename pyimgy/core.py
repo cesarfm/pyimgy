@@ -80,7 +80,7 @@ class ImageConverter:
         if converter_func is None:
             converter_func = self._converter_cache.get((from_type, to_type))
         if converter_func is None and not from_is_type:
-            converter_func = get_item_for_type_of(from_, self.type_converter_map)[1]
+            converter_func = next((conv for (ft, tt), conv in self.type_converter_map.items() if tt == to_type and isinstance(from_, ft)), None)
             if converter_func is not None:
                 self._converter_cache[(from_type, to_type)] = converter_func
         return converter_func
@@ -224,6 +224,10 @@ DEFAULT_CONVERTER = ImageConverter(
 @wraps(ImageConverter.convert_image)
 def convert_image(*args, **kwargs):
     return DEFAULT_CONVERTER.convert_image(*args, **kwargs)
+
+
+def get_array_shape(arr):
+    return DEFAULT_CONVERTER.get_array_shape(arr)
 
 
 def convert_to_standard_pil(img):

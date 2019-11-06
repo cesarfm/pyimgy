@@ -1,10 +1,10 @@
-from typing import Tuple
+from typing import Optional
 
 import PIL.Image
 
 from pyimgy.core import *
 
-__all__ = ['is_valid_image_shape', 'assert_valid_image_shape', 'get_image_palette', 'show_image_palette', 'resize_as_pil']
+__all__ = ['is_valid_image_shape', 'assert_valid_image_shape', 'get_image_palette', 'show_image_palette', 'resize_as_pil', 'get_color_distribution']
 
 
 # IMAGE FORMAT UTILS
@@ -52,6 +52,53 @@ def show_image_palette(img, colors: int = 256, ax=None) -> None:
     ax[0].set_title(f'Image {pal_img.size}')
     ax[1].imshow(pal)
     ax[1].set_title(f'Palette, {colors} colors')
+
+
+def encode_array_channels(arr: np.ndarray, ch_dim: int = 2) -> np.ndarray:
+    num_ch = arr.shape[ch_dim]
+    assert arr.dtype == np.uint8, 'Only arrays of type uint8 can be encoded.'
+    assert num_ch <= 4, 'Only a maximum of 4 channels can be encoded.'
+    arr_enc = np.zeros(remove_at_index(arr.shape, ch_dim), dtype=np.uint32)
+    for c in range(num_ch):
+        arr_ch = np.take(arr, c, axis=ch_dim).astype(np.uint32)
+        arr_enc = np.bitwise_or(arr_ch << (8 * c), arr_enc)
+    return arr_enc
+
+
+def decode_array_channels(arr_enc: np.ndarray, num_ch: int, ch_dim: int = -1) -> np.ndarray:
+    assert arr_enc.dtype == np.uint32, 'Only arrays of type uint32 can be decoded.'
+    assert num_ch <= 4, 'Only a maximum of 4 channels can be decoded.'
+    arr_channels = [np.bitwise_and(arr_enc >> (8 * c), 255).astype(np.uint8) for c in range(num_ch)]
+    return np.stack(arr_channels, axis=ch_dim)
+
+
+def get_color_distribution(img: PILImage, quantize_colors: Optional[int] = None, ratios: bool = False, sort: bool = True) -> Tuple[np.ndarray, ...]:
+    total_pixels = img.size[0] * img.size[1]
+
+    if quantize_colors is None:
+        img = convert_image(img, to_type=np.ndarray, shape='WHC')
+        num_ch = img.shape[2]
+        if num_ch == 1:
+            unique_colors, color_count = np.unique(img, return_counts=True)
+        else:
+            # we will do a trick and put all the channels in the same long integer
+            enc_img = encode_array_channels(img, ch_dim=2)
+            unique_enc_colors, color_count = np.unique(enc_img, return_counts=True)
+            # now we have to "decode" the flattened channels
+            unique_colors = decode_array_channels(unique_enc_colors, num_ch=num_ch)
+    else:
+        pal, pal_img = get_image_palette(img, quantize_colors)
+        pal_img = convert_image(pal_img, to_type=np.ndarray)
+        unique_pal_colors, color_count = np.unique(pal_img, return_counts=True)
+        unique_colors = pal[unique_pal_colors]
+
+    if sort:
+        # we want to sort these values by descending count
+        sort_idxs = np.argsort(-color_count)
+        unique_colors = unique_colors[sort_idxs]
+        color_count = color_count[sort_idxs]
+
+    return unique_colors, (color_count / total_pixels if ratios else color_count)
 
 
 # RESIZING

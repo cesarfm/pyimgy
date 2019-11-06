@@ -1,3 +1,5 @@
+from typing import Optional
+
 import PIL.Image
 
 from pyimgy.core import *
@@ -11,7 +13,7 @@ class ImageCropper:
     Component to automatically remove border frames of the same color from an image.
     """
 
-    def __init__(self, img: Union[np.ndarray, PILImage], quantize_colors: int = 256, tolerance: float = None):
+    def __init__(self, img: Union[np.ndarray, PILImage], quantize_colors: Optional[int] = 256, tolerance: float = None):
         """
         Creates the cropper for a given image.
 
@@ -70,7 +72,7 @@ class ImageCropper:
         ref_color = self.get_unique_color(img[None, pos, :])  # the None is needed for keeping the dims
 
         if ref_color is None or not (previous_ref_color is None or self.are_colors_equal(ref_color, previous_ref_color)):
-            return pos, None
+            return pos + (1 if from_end else 0), None
 
         while pos != until_pos and self.are_colors_equal(ref_color, self.get_unique_color(img[None, pos + step, :])):
             pos += step
@@ -99,6 +101,9 @@ class ImageCropper:
             return self.original_img.crop((left, top, right, bottom))
         else:
             return self.original_img[top:bottom, left:right]
+
+    def has_crop(self) -> bool:
+        return self.get_cropping_box() != (0, 0,) + self.img.shape[:2]
 
     @auto_plot()
     def show(self, ax=None):
