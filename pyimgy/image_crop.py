@@ -1,9 +1,6 @@
-from typing import Optional
-
 import PIL.Image
 
 from pyimgy.core import *
-from pyimgy.utils import *
 
 __all__ = ['ImageCropper', 'crop_image', 'crop_image_from_file']
 
@@ -26,12 +23,10 @@ class ImageCropper:
 
         if quantize_colors:
             pil_img = convert_image(img, to_type=PILImage)
-            self.img = convert_image(pil_img.convert('P', palette=PIL.Image.ADAPTIVE, colors=quantize_colors), to_type=np.ndarray)
-        else:
-            self.img = convert_image(img, to_type=np.ndarray)
+            img = pil_img.convert('P', palette=PIL.Image.ADAPTIVE, colors=quantize_colors)
 
-        assert_valid_image_shape(self.img)
-        self.img_t = self.img.transpose((1, 0) if self.img.ndim == 2 else (1, 0, 2))
+        self.img = convert_image(img, to_type=np.ndarray, shape='WHC')
+        self.img_t = self.img.transpose((1, 0, 2))
 
     def get_unique_value(self, arr: np.ndarray):
         a_min, a_max = arr.min(), arr.max()
@@ -43,7 +38,7 @@ class ImageCropper:
             return None
 
     def get_unique_color(self, arr: np.ndarray):
-        if arr.ndim <= 2:
+        if arr.ndim <= 2 or arr.shape[2] == 1:
             return self.get_unique_value(arr)
         else:
             num_channels = arr.shape[2]

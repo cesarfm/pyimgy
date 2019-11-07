@@ -1,21 +1,8 @@
-from typing import Optional
-
 import PIL.Image
 
 from pyimgy.core import *
 
-__all__ = ['is_valid_image_shape', 'assert_valid_image_shape', 'get_image_palette', 'show_image_palette', 'resize_as_pil', 'get_color_distribution']
-
-
-# IMAGE FORMAT UTILS
-
-
-def is_valid_image_shape(img: np.ndarray) -> bool:
-    return img.ndim == 2 or img.ndim == 3 and img.shape[2] in (1, 3, 4)
-
-
-def assert_valid_image_shape(img: np.ndarray) -> None:
-    assert is_valid_image_shape(img), f'Invalid image shape: {img.shape}'
+__all__ = ['get_image_palette', 'show_image_palette', 'resize_as_pil', 'encode_array_channels', 'decode_array_channels', 'get_color_distribution']
 
 
 # COLORS, PALETTE
@@ -72,11 +59,10 @@ def decode_array_channels(arr_enc: np.ndarray, num_ch: int, ch_dim: int = -1) ->
     return np.stack(arr_channels, axis=ch_dim)
 
 
-def get_color_distribution(img: PILImage, quantize_colors: Optional[int] = None, ratios: bool = False, sort: bool = True) -> Tuple[np.ndarray, ...]:
-    total_pixels = img.size[0] * img.size[1]
-
+def get_color_distribution(img, quantize_colors: Optional[int] = None, ratios: bool = False, sort: bool = True) -> Tuple[np.ndarray, ...]:
     if quantize_colors is None:
         img = convert_image(img, to_type=np.ndarray, shape='WHC')
+        total_pixels = img.shape[0] * img.shape[1]
         num_ch = img.shape[2]
         if num_ch == 1:
             unique_colors, color_count = np.unique(img, return_counts=True)
@@ -88,8 +74,9 @@ def get_color_distribution(img: PILImage, quantize_colors: Optional[int] = None,
             unique_colors = decode_array_channels(unique_enc_colors, num_ch=num_ch)
     else:
         pal, pal_img = get_image_palette(img, quantize_colors)
-        pal_img = convert_image(pal_img, to_type=np.ndarray)
-        unique_pal_colors, color_count = np.unique(pal_img, return_counts=True)
+        img = convert_image(pal_img, to_type=np.ndarray)
+        total_pixels = img.shape[0] * img.shape[1]
+        unique_pal_colors, color_count = np.unique(img, return_counts=True)
         unique_colors = pal[unique_pal_colors]
 
     if sort:

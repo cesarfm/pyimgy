@@ -1,5 +1,5 @@
 from functools import wraps
-from typing import Union, Tuple
+from typing import Union, Tuple, Any, Optional
 
 import PIL.Image
 import numpy as np
@@ -221,13 +221,12 @@ DEFAULT_CONVERTER = ImageConverter(
 )
 
 
-@wraps(ImageConverter.convert_image)
-def convert_image(*args, **kwargs):
-    return DEFAULT_CONVERTER.convert_image(*args, **kwargs)
+def convert_image(img: Any, to_type: Optional[type] = None, shape: Optional[str] = None, norm: Optional[str] = None) -> Any:
+    return DEFAULT_CONVERTER.convert_image(img, to_type, shape, norm)
 
 
-def get_array_shape(arr):
-    return DEFAULT_CONVERTER.get_array_shape(arr)
+def get_array_shape(img) -> str:
+    return DEFAULT_CONVERTER.get_array_shape(img)
 
 
 def convert_to_standard_pil(img):
