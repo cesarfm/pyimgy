@@ -312,17 +312,22 @@ def auto_plot(name: str = 'ax', **plot_kwargs):
     return auto_axes_decorator
 
 
+@auto_plot()
+def show_image(img, title=None, ax=None):
+    ax.imshow(convert_for_plot(img))
+    ax.axis('off')
+    if title is not None:
+        ax.set_title(str(title))
+
+
 @auto_plot(name='fig', figsize=(15, 8))
 def show_images(imgs, titles=None, r=1, fig=None):
     if isinstance(titles, list):
         assert len(imgs) == len(titles)
-    elif titles is not None:
+    else:
         titles = [titles] * len(imgs)
 
     c = np.ceil(len(imgs) / r)
     for i, img in enumerate(imgs):
         ax = fig.add_subplot(r, c, i + 1)
-        ax.imshow(convert_for_plot(img))
-        ax.axis('off')
-        if titles is not None:
-            ax.set_title(str(titles[i]))
+        show_image(img, titles[i], ax=ax)
