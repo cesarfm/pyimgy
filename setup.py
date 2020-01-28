@@ -33,7 +33,8 @@ setup(
         'typing',
         'numpy',
         'Pillow',
-        'matplotlib'
+        'matplotlib',
+        'opencv-python'
     ],
     extras_require={
         'torch': ['torch'],

@@ -1,3 +1,5 @@
+typing
 numpy
 matplotlib
 Pillow
+opencv-python

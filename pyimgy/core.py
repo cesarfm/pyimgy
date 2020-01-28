@@ -222,6 +222,34 @@ DEFAULT_CONVERTER = ImageConverter(
 
 
 def convert_image(img: Any, to_type: Optional[type] = None, shape: Optional[str] = None, norm: Optional[str] = None) -> Any:
+    """
+    This function allows to convert a given image data (which could correspond to one image or a batch), from various Python types, shapes and value
+    normalization. Basic usage:
+
+    ```
+    from pyimgy.core import *
+    img = PIL.Image.open('images/bedroom-with-border.jpg')
+    converted_img = convert_image(img, to_type=np.ndarray, shape='3WH', norm='int_255')
+    ```
+
+    The arguments `to_type`, `shape` and `norm` are all optional, but at least one must be given.
+
+    :param img:
+    :param to_type: indicates the Python type to which to convert the image (i.e. the type of the output). Possible values so far (from and to):
+                    <br/> - `numpy.ndarray`
+                    <br/> - `PIL.Image.Image` (the Image class from Pillow)
+                    <br/> - `torch.Tensor` (optional, if PyTorch is installed)
+                    <br/> - `fast.vision.Image` (optional, if fast.ai is installed)
+    :param shape: is used to re-shape the image data to one of the standard representations, given by a key. The number of character in the key tells
+                  how many dimensions the output shape should have, and the characters themselves determine what each dimension is.
+                  <br/> - 2 dim: `WH` (width, height)
+                  <br/> - 3 dim: `1WH, 3WH, CWH, WH1, WH3, WHC` (the channel can have size 1 or 3, or `C` as a wildcard, can be leading or trailing)
+                  <br/> - 4 dim: `13WH, 11WH, 1CWH, 1WH3` (the first dimension is always the batch size)
+    :param norm: to specify a normalization for the data itself
+                 <br/> - `int_255`: integer, scaled so the max value is 255
+                 <br/> - `float_1`: float, scaled so the max value is 1.0
+    :return:
+    """
     return DEFAULT_CONVERTER.convert_image(img, to_type, shape, norm)
 
 
