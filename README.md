@@ -1,6 +1,8 @@
 # pyimgy
 A small library of image tools for Python
 
+César Fuentes, 2020
+
 ## Features
 
 - `ImageConverter`: a universal, extensible component for easily converting images to different types, array shapes and normalizations.
@@ -59,7 +61,7 @@ They are in [utils](pyimgy/utils.py). Some of them are:
 - `get_image_palette`:  For the given image, return a palette of the request size, with the optimal colors. It leverages Pillow's palette conversion.
 - `get_color_distribution`: Return the unique colors detected in a given image, and how many pixels each covers (absolute or a ratio)
 
-## Video utils
+### Video utils
 
 Some functions to easily extract frames from videos. See [video_utils](pyimgy/video/video_utils.py).
 
